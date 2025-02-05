@@ -1,0 +1,507 @@
+const canvas = document.getElementById('gameCanvas')
+const ctx = canvas.getContext('2d')
+const scoreElement = document.getElementById('score')
+
+// Set canvas size
+canvas.width = 800
+canvas.height = 400
+
+// Game variables
+let score = 0
+let gameOver = false
+const gravity = 0.5
+const jumpForce = -12
+let platformSpeed = 3
+let rotation = 0
+const playerSpeed = 5
+const speedIncreaseFactor = 0.001 // Doubled acceleration
+const WRENCH_SCORE = 100
+const WRENCH_SPAWN_CHANCE = 0.3
+const WING_SPAWN_CHANCE = 0.1
+const BOMB_SPAWN_CHANCE = 0.15
+const BREAKABLE_PLATFORM_CHANCE = 0.4 // 40% chance for breakable platforms
+
+// Sound effects
+const sounds = {
+  jump: new Audio('Sounds/CarJump.mp3'),
+  collect: new Audio('Sounds/CarCollect.mp3'),
+  crash: new Audio('Sounds/CarCrash.mp3'),
+  spawn: new Audio('Sounds/CarSpawn.mp3'),
+}
+
+// Adjust sound volumes
+sounds.jump.volume = 0.3
+sounds.collect.volume = 0.3
+sounds.crash.volume = 0.4
+sounds.spawn.volume = 0.2
+
+// Function to play sound with restart
+function playSound(sound) {
+  sound.currentTime = 0
+  sound.play().catch((error) => console.log('Error playing sound:', error))
+}
+
+// Player object
+const player = {
+  x: 100,
+  y: canvas.height,
+  width: 75,
+  height: 50,
+  velocityY: 0,
+  velocityX: 0,
+  isJumping: false,
+  isFlipping: false,
+  canDoubleJump: 0, // Changed to number for stacking
+  hasDoubleJumped: false,
+  image: new Image(),
+}
+player.image.src = 'Sprites/Oilbert.png'
+
+// Platform class
+class Platform {
+  constructor(x, y, width, height, isBreakable = false) {
+    this.x = x
+    this.y = y
+    this.width = width
+    this.height = height
+    this.isBreakable = isBreakable
+    this.broken = false
+    this.decaying = false
+    this.decayStartTime = 0
+    this.decayDuration = 250 // 0.25 second in milliseconds
+  }
+
+  draw() {
+    if (this.broken) return
+
+    if (this.decaying) {
+      const currentTime = Date.now()
+      const elapsedTime = currentTime - this.decayStartTime
+      const progress = elapsedTime / this.decayDuration
+
+      if (progress >= 1) {
+        this.broken = true
+        return
+      }
+
+      // Make platform more transparent as it decays
+      ctx.globalAlpha = 1 - progress
+    }
+
+    ctx.fillStyle = this.isBreakable ? '#FFA500' : '#4CAF50'
+    ctx.fillRect(this.x, this.y, this.width, this.height)
+    if (this.isBreakable) {
+      ctx.strokeStyle = '#FF4500'
+      ctx.lineWidth = 2
+      ctx.strokeRect(this.x, this.y, this.width, this.height)
+    }
+
+    // Reset global alpha
+    if (this.decaying) {
+      ctx.globalAlpha = 1
+    }
+  }
+
+  startDecay() {
+    if (this.isBreakable && !this.decaying) {
+      this.decaying = true
+      this.decayStartTime = Date.now()
+    }
+  }
+}
+
+// Powerup classes
+class Wrench {
+  constructor(x, y) {
+    this.x = x
+    this.y = y
+    this.width = 30
+    this.height = 30
+    this.image = new Image()
+    this.image.src = 'Sprites/Wrench.png'
+  }
+
+  draw() {
+    ctx.drawImage(this.image, this.x, this.y, this.width, this.height)
+  }
+}
+
+class Wing {
+  constructor(x, y) {
+    this.x = x
+    this.y = y
+    this.width = 40
+    this.height = 40
+    this.image = new Image()
+    this.image.src = 'Sprites/WingPowerup.png'
+  }
+
+  draw() {
+    ctx.drawImage(this.image, this.x, this.y, this.width, this.height)
+  }
+}
+
+class Bomb {
+  constructor(x, y) {
+    this.x = x
+    this.y = y
+    this.width = 35
+    this.height = 35
+    this.image = new Image()
+    this.image.src = 'Sprites/Bomb.png'
+  }
+
+  draw() {
+    ctx.drawImage(this.image, this.x, this.y, this.width, this.height)
+  }
+}
+
+// Create initial platforms
+let platforms = [
+  new Platform(0, canvas.height - 40, canvas.width + 100, 40),
+  new Platform(400, canvas.height - 120, 200, 20),
+  new Platform(700, canvas.height - 200, 200, 20),
+  new Platform(1000, canvas.height - 150, 200, 20),
+]
+
+// Create arrays for powerups
+let wrenches = []
+let wings = []
+let bombs = []
+
+// Handle keyboard input
+const keys = {}
+document.addEventListener('keydown', (e) => {
+  keys[e.code] = true
+})
+document.addEventListener('keyup', (e) => {
+  keys[e.code] = false
+})
+
+// Reset game function
+function resetGame() {
+  score = 0
+  gameOver = false
+  platformSpeed = 3
+  player.x = 100
+  player.y = canvas.height - player.height
+  player.velocityY = 0
+  player.velocityX = 0
+  player.isJumping = false
+  player.isFlipping = false
+  player.canDoubleJump = 0
+  player.hasDoubleJumped = false
+  rotation = 0
+  wrenches = []
+  wings = []
+  bombs = []
+
+  // Reset platforms
+  platforms = [
+    new Platform(0, canvas.height - 40, canvas.width + 100, 40),
+    new Platform(400, canvas.height - 120, 200, 20),
+    new Platform(700, canvas.height - 200, 200, 20),
+    new Platform(1000, canvas.height - 150, 200, 20),
+  ]
+}
+
+// Game loop
+function gameLoop() {
+  // Clear canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  if (gameOver) {
+    // Draw game over screen
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    ctx.fillStyle = 'white'
+    ctx.font = '48px Arial'
+    ctx.textAlign = 'center'
+    ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2 - 50)
+
+    ctx.font = '24px Arial'
+    ctx.fillText(
+      `Final Score: ${Math.floor(score / 10)}`,
+      canvas.width / 2,
+      canvas.height / 2
+    )
+    ctx.fillText(
+      'Press SPACE to restart',
+      canvas.width / 2,
+      canvas.height / 2 + 50
+    )
+
+    // Check for restart
+    if (keys['Space']) {
+      resetGame()
+    }
+
+    requestAnimationFrame(gameLoop)
+    return
+  }
+
+  // Draw double jump indicator
+  if (player.canDoubleJump > 0) {
+    ctx.save()
+    // Draw wing icons based on number of double jumps available
+    for (let i = 0; i < player.canDoubleJump; i++) {
+      const wingIcon = new Image()
+      wingIcon.src = 'Sprites/WingPowerup.png'
+      ctx.drawImage(wingIcon, 10 + i * 35, 10, 30, 30)
+    }
+    // Draw indicator text
+    ctx.fillStyle = 'white'
+    ctx.font = '20px Arial'
+    ctx.textAlign = 'left'
+    ctx.fillText(
+      `Double Jumps: ${player.canDoubleJump}`,
+      10 + player.canDoubleJump * 35 + 10,
+      30
+    )
+    ctx.restore()
+  }
+
+  // Gradually increase platform speed (faster acceleration)
+  platformSpeed += speedIncreaseFactor
+
+  // Draw current speed
+  ctx.fillStyle = 'white'
+  ctx.font = '20px Arial'
+  ctx.textAlign = 'right'
+  ctx.fillText(`Speed: ${platformSpeed.toFixed(1)}x`, canvas.width - 10, 30)
+
+  // Handle horizontal movement
+  if (keys['ArrowLeft']) {
+    player.velocityX = -playerSpeed
+  } else if (keys['ArrowRight']) {
+    player.velocityX = playerSpeed
+  } else {
+    player.velocityX = 0
+  }
+
+  // Update player position with bounds checking
+  player.x += player.velocityX
+  if (player.x < 0) player.x = 0
+  if (player.x + player.width > canvas.width)
+    player.x = canvas.width - player.width
+
+  // Apply gravity
+  player.velocityY += gravity
+  player.y += player.velocityY
+
+  // Move platforms
+  platforms.forEach((platform) => {
+    platform.x -= platformSpeed
+  })
+
+  // Remove platforms that are off screen and add new ones
+  if (platforms[0].x + platforms[0].width < 0) {
+    platforms.shift()
+    const lastPlatform = platforms[platforms.length - 1]
+    const minGap = 100
+    const maxGap = 200
+    const gap = Math.random() * (maxGap - minGap) + minGap
+
+    const isBreakable = Math.random() < BREAKABLE_PLATFORM_CHANCE
+
+    const newPlatform = new Platform(
+      lastPlatform.x + lastPlatform.width + gap,
+      canvas.height - (Math.random() * 150 + 100),
+      100 + Math.random() * 50,
+      20,
+      isBreakable
+    )
+    platforms.push(newPlatform)
+
+    // Spawn positions for powerups
+    const powerupPositions = []
+
+    // Chance to spawn wrench
+    if (Math.random() < WRENCH_SPAWN_CHANCE) {
+      powerupPositions.push({
+        type: 'wrench',
+        x: newPlatform.x + newPlatform.width / 2,
+        y: newPlatform.y - 50,
+      })
+    }
+
+    // Chance to spawn wing
+    if (Math.random() < WING_SPAWN_CHANCE) {
+      powerupPositions.push({
+        type: 'wing',
+        x: newPlatform.x + newPlatform.width / 2 - 40, // Offset to avoid overlap
+        y: newPlatform.y - 60,
+      })
+    }
+
+    // Chance to spawn bomb
+    if (Math.random() < BOMB_SPAWN_CHANCE) {
+      // Only spawn bomb if there's no other powerup at this position
+      if (powerupPositions.length === 0) {
+        bombs.push(
+          new Bomb(newPlatform.x + newPlatform.width / 2, newPlatform.y - 55)
+        )
+      }
+    }
+
+    // Create the powerups that were selected
+    powerupPositions.forEach((pos) => {
+      if (pos.type === 'wrench') {
+        wrenches.push(new Wrench(pos.x, pos.y))
+      } else if (pos.type === 'wing') {
+        wings.push(new Wing(pos.x, pos.y))
+      }
+    })
+  }
+
+  // Move and remove powerups
+  wrenches = wrenches.filter((wrench) => {
+    wrench.x -= platformSpeed
+    return wrench.x + wrench.width > 0
+  })
+
+  wings = wings.filter((wing) => {
+    wing.x -= platformSpeed
+    return wing.x + wing.width > 0
+  })
+
+  bombs = bombs.filter((bomb) => {
+    bomb.x -= platformSpeed
+    return bomb.x + bomb.width > 0
+  })
+
+  // Check collision with platforms
+  let onPlatform = false
+  platforms.forEach((platform) => {
+    if (
+      !platform.broken &&
+      player.y + player.height >= platform.y &&
+      player.y + player.height <= platform.y + platform.height + 5 &&
+      player.x + player.width > platform.x &&
+      player.x < platform.x + platform.width &&
+      player.velocityY >= 0
+    ) {
+      onPlatform = true
+      player.isJumping = false
+      player.y = platform.y - player.height
+      player.velocityY = 0
+
+      if (platform.isBreakable && !platform.decaying) {
+        platform.startDecay()
+        playSound(sounds.crash)
+      }
+    }
+  })
+
+  // Check collision with powerups
+  wrenches = wrenches.filter((wrench) => {
+    if (
+      player.x < wrench.x + wrench.width &&
+      player.x + player.width > wrench.x &&
+      player.y < wrench.y + wrench.height &&
+      player.y + player.height > wrench.y
+    ) {
+      score += WRENCH_SCORE
+      playSound(sounds.collect)
+      return false
+    }
+    return true
+  })
+
+  wings = wings.filter((wing) => {
+    if (
+      player.x < wing.x + wing.width &&
+      player.x + player.width > wing.x &&
+      player.y < wing.y + wing.height &&
+      player.y + player.height > wing.y
+    ) {
+      player.canDoubleJump += 1 // Increment double jump counter
+      playSound(sounds.spawn)
+      return false
+    }
+    return true
+  })
+
+  // Check collision with bombs
+  bombs = bombs.filter((bomb) => {
+    if (
+      player.x < bomb.x + bomb.width &&
+      player.x + player.width > bomb.x &&
+      player.y < bomb.y + bomb.height &&
+      player.y + player.height > bomb.y
+    ) {
+      gameOver = true
+      playSound(sounds.crash)
+      return false
+    }
+    return true
+  })
+
+  // Handle jump
+  if (keys['Space']) {
+    if (!player.isJumping && onPlatform) {
+      player.velocityY = jumpForce
+      player.isJumping = true
+      player.isFlipping = true
+      rotation = 0
+      player.hasDoubleJumped = false
+      playSound(sounds.jump)
+    } else if (player.canDoubleJump > 0 && player.velocityY > 0) {
+      player.velocityY = jumpForce
+      player.isFlipping = true
+      rotation = 0
+      player.canDoubleJump -= 1 // Decrement double jump counter
+      playSound(sounds.jump)
+    }
+  }
+
+  // Update flip animation
+  if (player.isFlipping) {
+    rotation += 0.2
+    if (rotation >= Math.PI * 2) {
+      rotation = 0
+      player.isFlipping = false
+    }
+  }
+
+  // Keep player in bounds
+  if (player.y + player.height > canvas.height) {
+    player.y = canvas.height - player.height
+    player.velocityY = 0
+    player.isJumping = false
+    gameOver = true
+    playSound(sounds.crash)
+  }
+
+  // Update score
+  score += 1
+  scoreElement.textContent = `Score: ${Math.floor(score / 10)}`
+
+  // Draw powerups
+  wrenches.forEach((wrench) => wrench.draw())
+  wings.forEach((wing) => wing.draw())
+  bombs.forEach((bomb) => bomb.draw())
+
+  // Draw platforms
+  platforms.forEach((platform) => platform.draw())
+
+  // Draw player with rotation
+  ctx.save()
+  ctx.translate(player.x + player.width / 2, player.y + player.height / 2)
+  if (player.isFlipping) {
+    ctx.rotate(rotation)
+  }
+  ctx.scale(-1, 1)
+  ctx.translate(-player.width / 2, -player.height / 2)
+  ctx.drawImage(player.image, 0, 0, player.width, player.height)
+  ctx.restore()
+
+  // Continue game loop
+  requestAnimationFrame(gameLoop)
+}
+
+// Start the game when the image is loaded
+player.image.onload = () => {
+  gameLoop()
+}
