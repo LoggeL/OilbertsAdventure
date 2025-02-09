@@ -1,6 +1,5 @@
 const canvas = document.getElementById('gameCanvas')
 const ctx = canvas.getContext('2d')
-const scoreElement = document.getElementById('score')
 
 // Set canvas size
 canvas.width = 800
@@ -9,6 +8,8 @@ canvas.height = 400
 // Game variables
 let score = 0
 let gameOver = false
+let gameStarted = false // New variable to track if game has started
+let highScore = parseInt(localStorage.getItem('oilbertHighScore')) || 0 // Add highscore tracking
 const gravity = 0.5
 const jumpForce = -12
 let platformSpeed = 3
@@ -180,8 +181,16 @@ document.addEventListener('keyup', (e) => {
 
 // Reset game function
 function resetGame() {
+  // Update high score before resetting
+  const finalScore = Math.floor(score / 10)
+  if (finalScore > highScore) {
+    highScore = finalScore
+    localStorage.setItem('oilbertHighScore', highScore)
+  }
+
   score = 0
   gameOver = false
+  gameStarted = false // Reset to show splash screen
   platformSpeed = 3
   player.x = 100
   player.y = canvas.height - player.height
@@ -205,10 +214,96 @@ function resetGame() {
   ]
 }
 
+// Draw splash screen
+function drawSplashScreen() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  // Draw title
+  ctx.fillStyle = 'white'
+  ctx.font = 'bold 48px Arial'
+  ctx.textAlign = 'center'
+  ctx.fillText("Oilbert's Adventure", canvas.width / 2, 80)
+
+  // Draw high score under title if it exists
+  if (highScore > 0) {
+    ctx.font = 'bold 24px Arial'
+    ctx.fillText(`High Score: ${highScore}`, canvas.width / 2, 120)
+  }
+
+  // Draw Oilbert
+  ctx.save()
+  ctx.translate(canvas.width / 2 - player.width / 2, 100)
+  ctx.drawImage(player.image, 0, 0, player.width * 1.5, player.height * 1.5)
+  ctx.restore()
+
+  // Left side - Controls section
+  const leftSideX = canvas.width / 3
+  ctx.font = 'bold 24px Arial'
+  ctx.fillText('Controls:', leftSideX, 200)
+
+  ctx.font = '20px Arial'
+  ctx.fillText('← → Arrow Keys: Move Left/Right', leftSideX, 230)
+  ctx.fillText('SPACE: Jump', leftSideX, 260)
+  ctx.fillText('Double Jump available with Wing Power-up!', leftSideX, 290)
+
+  // Right side - Power-ups section
+  const rightSideX = (canvas.width * 2) / 3
+  ctx.font = 'bold 24px Arial'
+  ctx.fillText('Power-ups:', rightSideX, 200)
+
+  // Adjust powerup positioning
+  const powerupX = rightSideX - 25 // Move icons more to the left
+  const powerupTextX = powerupX + 100 // Add more space between icon and text
+  const powerupStartY = 230
+  const powerupSpacing = 45 // Increase vertical spacing between powerups
+
+  // Draw wrench icon and explanation
+  const wrenchIcon = new Image()
+  wrenchIcon.src = 'Sprites/Wrench.png'
+  ctx.drawImage(wrenchIcon, powerupX, powerupStartY, 30, 30)
+  ctx.font = '20px Arial'
+  ctx.fillText('= Points', powerupTextX, powerupStartY + 20)
+
+  // Draw wing icon and explanation
+  const wingIcon = new Image()
+  wingIcon.src = 'Sprites/WingPowerup.png'
+  ctx.drawImage(wingIcon, powerupX, powerupStartY + powerupSpacing, 30, 30)
+  ctx.fillText(
+    '= Double Jump',
+    powerupTextX,
+    powerupStartY + powerupSpacing + 20
+  )
+
+  // Draw bomb icon and explanation
+  const bombIcon = new Image()
+  bombIcon.src = 'Sprites/Bomb.png'
+  ctx.drawImage(bombIcon, powerupX, powerupStartY + powerupSpacing * 2, 30, 30)
+  ctx.fillText(
+    '= Avoid!',
+    powerupTextX,
+    powerupStartY + powerupSpacing * 2 + 20
+  )
+
+  // Draw start instruction at bottom
+  ctx.font = 'bold 24px Arial'
+  ctx.fillText('Press SPACE to Start!', canvas.width / 2, canvas.height - 30)
+}
+
 // Game loop
 function gameLoop() {
   // Clear canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  if (!gameStarted) {
+    drawSplashScreen()
+    if (keys['Space']) {
+      gameStarted = true
+      playSound(sounds.spawn)
+    }
+    requestAnimationFrame(gameLoop)
+    return
+  }
 
   if (gameOver) {
     // Draw game over screen
@@ -218,14 +313,29 @@ function gameLoop() {
     ctx.fillStyle = 'white'
     ctx.font = '48px Arial'
     ctx.textAlign = 'center'
-    ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2 - 50)
+    ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2 - 70)
 
+    const finalScore = Math.floor(score / 10)
     ctx.font = '24px Arial'
     ctx.fillText(
-      `Final Score: ${Math.floor(score / 10)}`,
+      `Score: ${finalScore}`,
       canvas.width / 2,
-      canvas.height / 2
+      canvas.height / 2 - 20
     )
+
+    // Show high score
+    if (finalScore > highScore) {
+      ctx.fillStyle = '#FFD700' // Gold color for new high score
+      ctx.fillText('New High Score!', canvas.width / 2, canvas.height / 2 + 10)
+    } else {
+      ctx.fillText(
+        `High Score: ${highScore}`,
+        canvas.width / 2,
+        canvas.height / 2 + 10
+      )
+    }
+
+    ctx.fillStyle = 'white'
     ctx.fillText(
       'Press SPACE to restart',
       canvas.width / 2,
@@ -241,35 +351,41 @@ function gameLoop() {
     return
   }
 
-  // Draw double jump indicator
+  // Draw score and highscore
+  ctx.fillStyle = 'white'
+  ctx.font = '20px Arial'
+  ctx.textAlign = 'left'
+  const currentScore = Math.floor(score / 10)
+  ctx.fillText(`Score: ${currentScore}`, 10, 30)
+
+  // Show high score next to current score
+  ctx.textAlign = 'right'
+  ctx.fillText(`High Score: ${highScore}`, canvas.width - 10, 30)
+
+  // Draw speed below high score
+  ctx.fillText(`Speed: ${platformSpeed.toFixed(1)}x`, canvas.width - 10, 60)
+
+  // Draw double jump indicator below score
   if (player.canDoubleJump > 0) {
     ctx.save()
+    ctx.textAlign = 'left'
     // Draw wing icons based on number of double jumps available
     for (let i = 0; i < player.canDoubleJump; i++) {
       const wingIcon = new Image()
       wingIcon.src = 'Sprites/WingPowerup.png'
-      ctx.drawImage(wingIcon, 10 + i * 35, 10, 30, 30)
+      ctx.drawImage(wingIcon, 10 + i * 35, 40, 30, 30)
     }
-    // Draw indicator text
-    ctx.fillStyle = 'white'
-    ctx.font = '20px Arial'
-    ctx.textAlign = 'left'
+    // Draw indicator text next to wings
     ctx.fillText(
       `Double Jumps: ${player.canDoubleJump}`,
       10 + player.canDoubleJump * 35 + 10,
-      30
+      60
     )
     ctx.restore()
   }
 
   // Gradually increase platform speed (faster acceleration)
   platformSpeed += speedIncreaseFactor
-
-  // Draw current speed
-  ctx.fillStyle = 'white'
-  ctx.font = '20px Arial'
-  ctx.textAlign = 'right'
-  ctx.fillText(`Speed: ${platformSpeed.toFixed(1)}x`, canvas.width - 10, 30)
 
   // Handle horizontal movement
   if (keys['ArrowLeft']) {
@@ -476,7 +592,6 @@ function gameLoop() {
 
   // Update score
   score += 1
-  scoreElement.textContent = `Score: ${Math.floor(score / 10)}`
 
   // Draw powerups
   wrenches.forEach((wrench) => wrench.draw())
