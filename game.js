@@ -21,6 +21,8 @@ const WRENCH_SPAWN_CHANCE = 0.3
 const WING_SPAWN_CHANCE = 0.1
 const BOMB_SPAWN_CHANCE = 0.15
 const BREAKABLE_PLATFORM_CHANCE = 0.4 // 40% chance for breakable platforms
+const BOMB_BASE_SIZE = 30
+const BOMB_SCALE_FACTOR = 0.0005 // How much to grow per score point
 
 // Sound effects
 const sounds = {
@@ -146,14 +148,29 @@ class Bomb {
   constructor(x, y) {
     this.x = x
     this.y = y
-    this.width = 35
-    this.height = 35
+    this.baseWidth = BOMB_BASE_SIZE
+    this.baseHeight = BOMB_BASE_SIZE
     this.image = new Image()
     this.image.src = 'Sprites/Bomb.png'
   }
 
   draw() {
-    ctx.drawImage(this.image, this.x, this.y, this.width, this.height)
+    // Calculate current size based on score
+    const scaleFactor = 1 + Math.floor(score / 10) * BOMB_SCALE_FACTOR
+    this.width = this.baseWidth * scaleFactor
+    this.height = this.baseHeight * scaleFactor
+
+    // Center the bomb as it grows
+    const xOffset = (this.width - this.baseWidth) / 2
+    const yOffset = (this.height - this.baseHeight) / 2
+
+    ctx.drawImage(
+      this.image,
+      this.x - xOffset,
+      this.y - yOffset,
+      this.width,
+      this.height
+    )
   }
 }
 
@@ -178,6 +195,100 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => {
   keys[e.code] = false
 })
+
+// Mobile touch controls
+let touchStartX = 0
+let isTouching = false
+let isJumpPressed = false
+
+// Create touch zones
+const leftTouchZone = canvas.width * 0.3 // 30% of screen width for left movement
+const rightTouchZone = canvas.width * 0.7 // 70% of screen width starts right movement
+const jumpZone = canvas.height * 0.5 // Top half of screen for jumping
+
+// Handle touch controls
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault() // Prevent scrolling
+  const touch = e.touches[0]
+  const rect = canvas.getBoundingClientRect()
+  const x = touch.clientX - rect.left
+  const y = touch.clientY - rect.top
+  touchStartX = x
+  isTouching = true
+
+  // Check if touch is in jump zone (top half of screen)
+  if (y < jumpZone) {
+    isJumpPressed = true
+    keys['Space'] = true
+  }
+})
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault() // Prevent scrolling
+  if (!isTouching) return
+
+  const touch = e.touches[0]
+  const rect = canvas.getBoundingClientRect()
+  const x = touch.clientX - rect.left
+
+  // Reset movement keys
+  keys['ArrowLeft'] = false
+  keys['ArrowRight'] = false
+
+  // Check horizontal position for movement
+  if (x < leftTouchZone) {
+    keys['ArrowLeft'] = true
+  } else if (x > rightTouchZone) {
+    keys['ArrowRight'] = true
+  }
+})
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault() // Prevent scrolling
+  isTouching = false
+  isJumpPressed = false
+  // Reset all controls
+  keys['ArrowLeft'] = false
+  keys['ArrowRight'] = false
+  keys['Space'] = false
+})
+
+// Add visual indicators for touch controls during gameplay
+function drawTouchControls() {
+  if (!gameStarted || gameOver) return
+
+  ctx.save()
+  ctx.globalAlpha = 0.2
+
+  // Draw left arrow
+  ctx.fillStyle = keys['ArrowLeft'] ? '#FFD700' : 'white'
+  ctx.beginPath()
+  ctx.moveTo(80, canvas.height - 60)
+  ctx.lineTo(40, canvas.height - 40)
+  ctx.lineTo(80, canvas.height - 20)
+  ctx.closePath()
+  ctx.fill()
+
+  // Draw right arrow
+  ctx.fillStyle = keys['ArrowRight'] ? '#FFD700' : 'white'
+  ctx.beginPath()
+  ctx.moveTo(canvas.width - 80, canvas.height - 60)
+  ctx.lineTo(canvas.width - 40, canvas.height - 40)
+  ctx.lineTo(canvas.width - 80, canvas.height - 20)
+  ctx.closePath()
+  ctx.fill()
+
+  // Draw jump indicator
+  ctx.fillStyle = isJumpPressed ? '#FFD700' : 'white'
+  ctx.beginPath()
+  ctx.moveTo(canvas.width / 2 - 20, canvas.height - 60)
+  ctx.lineTo(canvas.width / 2 + 20, canvas.height - 60)
+  ctx.lineTo(canvas.width / 2, canvas.height - 20)
+  ctx.closePath()
+  ctx.fill()
+
+  ctx.restore()
+}
 
 // Reset game function
 function resetGame() {
@@ -483,8 +594,25 @@ function gameLoop() {
   })
 
   bombs = bombs.filter((bomb) => {
-    bomb.x -= platformSpeed
-    return bomb.x + bomb.width > 0
+    const scaleFactor = 1 + Math.floor(score / 10) * BOMB_SCALE_FACTOR
+    bomb.width = bomb.baseWidth * scaleFactor
+    bomb.height = bomb.baseHeight * scaleFactor
+
+    // Center the hitbox as the bomb grows
+    const xOffset = (bomb.width - bomb.baseWidth) / 2
+    const yOffset = (bomb.height - bomb.baseHeight) / 2
+
+    if (
+      player.x < bomb.x - xOffset + bomb.width &&
+      player.x + player.width > bomb.x - xOffset &&
+      player.y < bomb.y - yOffset + bomb.height &&
+      player.y + player.height > bomb.y - yOffset
+    ) {
+      gameOver = true
+      playSound(sounds.crash)
+      return false
+    }
+    return true
   })
 
   // Check collision with platforms
@@ -539,21 +667,6 @@ function gameLoop() {
     return true
   })
 
-  // Check collision with bombs
-  bombs = bombs.filter((bomb) => {
-    if (
-      player.x < bomb.x + bomb.width &&
-      player.x + player.width > bomb.x &&
-      player.y < bomb.y + bomb.height &&
-      player.y + player.height > bomb.y
-    ) {
-      gameOver = true
-      playSound(sounds.crash)
-      return false
-    }
-    return true
-  })
-
   // Handle jump
   if (keys['Space']) {
     if (!player.isJumping && onPlatform) {
@@ -600,6 +713,9 @@ function gameLoop() {
 
   // Draw platforms
   platforms.forEach((platform) => platform.draw())
+
+  // Draw touch controls
+  drawTouchControls()
 
   // Draw player with rotation
   ctx.save()
