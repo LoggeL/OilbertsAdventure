@@ -61,10 +61,12 @@ A fun and challenging endless runner game where you control Oilbert, a brave lit
 ## 🛠️ Technical Details
 
 - Built with vanilla JavaScript
-- Uses HTML5 Canvas for rendering
+- Uses HTML and CSS for rendering
 - Local storage for high score persistence
 - Sound effects for enhanced gameplay
-- Responsive game loop with smooth animations
+- Responsive design for mobile devices
+- Touch controls for mobile gameplay
+- Smooth animations using CSS transitions
 
 ## 🎵 Sound Credits
 
