@@ -1,10 +1,11 @@
 // Constants
-const GRAVITY = 0.5
-const JUMP_FORCE = -12
-const PLAYER_SPEED = 10
-const INITIAL_PLATFORM_SPEED = 3
-const SPEED_INCREASE = 0.5 // Increased for more noticeable acceleration
+const GRAVITY = 1200 // Units per second squared
+const JUMP_FORCE = -600 // Units per second
+const PLAYER_SPEED = 400 // Units per second
+const INITIAL_PLATFORM_SPEED = 250 // Units per second
+const SPEED_INCREASE = 30 // Speed increase per interval (units per second)
 const SPEED_UPDATE_INTERVAL = 1000 // Update speed every 1000 points
+const MAX_DELTA_TIME = 1 / 30 // Cap deltaTime to prevent physics issues at high refresh rates
 const WRENCH_SCORE = 100
 const WRENCH_SPAWN_CHANCE = 0.3
 const WING_SPAWN_CHANCE = 0.2
@@ -13,7 +14,8 @@ const BREAKABLE_PLATFORM_CHANCE = 0.4
 const BOMB_BASE_SIZE = 30
 const BOMB_SCALE_FACTOR = 0.0005
 const PLATFORM_SPAWN_DISTANCE = window.innerWidth * 4
-const INITIAL_PLATFORM_DISTANCE = window.innerWidth * 3 // Initial platforms span 3 screens
+const INITIAL_PLATFORM_DISTANCE = window.innerWidth * 3
+const SCORE_RATE = 60 // Score points per second
 
 // Game variables
 let score = 0
@@ -214,7 +216,9 @@ function updateDisplay() {
   const currentScore = Math.floor(score / 10)
   scoreElement.textContent = `Score: ${currentScore}`
   highScoreElement.textContent = `High Score: ${highScore}`
-  speedElement.textContent = `Speed: ${platformSpeed.toFixed(1)}x`
+  speedElement.textContent = `Speed: ${(
+    platformSpeed / INITIAL_PLATFORM_SPEED
+  ).toFixed(1)}x`
 
   // Only update double jump indicators if the count has changed
   if (lastDoubleJumpCount !== canDoubleJump) {
@@ -236,8 +240,11 @@ function gameLoop(currentTime) {
     lastFrameTime = currentTime
   }
 
-  // Calculate time since last frame in seconds
-  const deltaTime = (currentTime - lastFrameTime) / 1000
+  // Calculate time since last frame in seconds, capped to prevent physics issues
+  const deltaTime = Math.min(
+    (currentTime - lastFrameTime) / 1000,
+    MAX_DELTA_TIME
+  )
   lastFrameTime = currentTime
 
   if (!gameStarted) {
@@ -267,7 +274,6 @@ function gameLoop(currentTime) {
   }
 
   if (isPaused) {
-    // Reset lastFrameTime when paused to prevent time accumulation
     lastFrameTime = currentTime
     requestAnimationFrame(gameLoop)
     return
@@ -277,39 +283,44 @@ function gameLoop(currentTime) {
   if (!gameOver && score - lastSpeedUpdate >= SPEED_UPDATE_INTERVAL) {
     platformSpeed += SPEED_INCREASE
     lastSpeedUpdate = score
-    speedElement.textContent = `Speed: ${platformSpeed.toFixed(1)}x`
+    speedElement.textContent = `Speed: ${(
+      platformSpeed / INITIAL_PLATFORM_SPEED
+    ).toFixed(1)}x`
   }
 
   // Handle player movement
   if (keys['ArrowLeft'] || keys['KeyA']) {
-    playerVelocityX = -PLAYER_SPEED
+    playerVelocityX = -PLAYER_SPEED * deltaTime
+    player.querySelector('img').style.transform = 'scaleX(-1)'
   } else if (keys['ArrowRight'] || keys['KeyD']) {
-    playerVelocityX = PLAYER_SPEED
+    playerVelocityX = PLAYER_SPEED * deltaTime
+    player.querySelector('img').style.transform = 'scaleX(1)'
   } else {
     playerVelocityX = 0
   }
 
-  // Update player position with deltaTime
+  // Update player position
   const playerRect = player.getBoundingClientRect()
   const containerRect = gameContainer.getBoundingClientRect()
 
-  // Adjust player position to account for platform movement
+  // Update horizontal position
   let newX =
     playerRect.left -
     containerRect.left +
-    (playerVelocityX - platformSpeed) * deltaTime * 60
+    playerVelocityX -
+    platformSpeed * deltaTime
   newX = Math.max(0, Math.min(newX, containerRect.width - playerRect.width))
   player.style.left = `${newX}px`
 
-  // Apply gravity with deltaTime
-  playerVelocityY += GRAVITY * deltaTime * 60
+  // Update vertical position with gravity
+  playerVelocityY += GRAVITY * deltaTime
   let currentY = parseInt(player.style.top || '0')
-  let newY = currentY + playerVelocityY * deltaTime * 60
+  let newY = currentY + playerVelocityY * deltaTime
 
-  // Move platforms and check for removal
+  // Move platforms
   document.querySelectorAll('.platform').forEach((platform) => {
     const currentX = parseFloat(platform.style.left)
-    platform.style.left = `${currentX - platformSpeed * deltaTime * 60}px`
+    platform.style.left = `${currentX - platformSpeed * deltaTime}px`
 
     // Remove platforms that are off screen
     if (currentX + parseFloat(platform.style.width) < -200) {
@@ -321,10 +332,10 @@ function gameLoop(currentTime) {
     }
   })
 
-  // Move powerups with platforms
+  // Move powerups
   document.querySelectorAll('.powerup').forEach((powerup) => {
     const currentX = parseFloat(powerup.style.left)
-    powerup.style.left = `${currentX - platformSpeed * deltaTime * 60}px`
+    powerup.style.left = `${currentX - platformSpeed * deltaTime}px`
 
     // Remove powerups that are off screen
     if (currentX + 30 < -200) {
@@ -332,6 +343,7 @@ function gameLoop(currentTime) {
       return
     }
 
+    // Check powerup collisions
     const powerupRect = powerup.getBoundingClientRect()
     if (
       playerRect.right > powerupRect.left &&
@@ -358,16 +370,18 @@ function gameLoop(currentTime) {
             document.getElementById(
               'final-score'
             ).textContent = `Score: ${finalScore}`
-            const highScoreElement = document.getElementById('final-high-score')
-            highScoreElement.textContent = `High Score: ${highScore}`
 
             if (finalScore > highScore) {
               highScore = finalScore
               localStorage.setItem('oilbertHighScore', highScore)
-              highScoreElement.classList.add('new-record')
-            } else {
-              highScoreElement.classList.remove('new-record')
             }
+
+            const highScoreElement = document.getElementById('final-high-score')
+            highScoreElement.textContent = `High Score: ${highScore}`
+            highScoreElement.classList.toggle(
+              'new-record',
+              finalScore > highScore
+            )
           }
           break
       }
@@ -427,13 +441,12 @@ function gameLoop(currentTime) {
     const playerBottom = playerRect.bottom - containerRect.top
     const platformTop = platformRect.top - containerRect.top
 
-    // Expand collision check slightly
     const collisionBuffer = 10
 
     if (
       playerBottom >= platformTop - collisionBuffer &&
       playerBottom <= platformTop + collisionBuffer &&
-      playerRect.right > platformRect.left + 5 && // Add slight inset to prevent edge cases
+      playerRect.right > platformRect.left + 5 &&
       playerRect.left < platformRect.right - 5 &&
       playerVelocityY >= 0
     ) {
@@ -487,21 +500,21 @@ function gameLoop(currentTime) {
       document.getElementById(
         'final-score'
       ).textContent = `Score: ${finalScore}`
+
+      if (finalScore > highScore) {
+        highScore = finalScore
+        localStorage.setItem('oilbertHighScore', highScore)
+      }
+
       const highScoreElement = document.getElementById('final-high-score')
       highScoreElement.textContent = `High Score: ${highScore}`
-
-      // Check if this is a new high score
-      if (finalScore > highScore) {
-        highScoreElement.classList.add('new-record')
-      } else {
-        highScoreElement.classList.remove('new-record')
-      }
+      highScoreElement.classList.toggle('new-record', finalScore > highScore)
     }
   }
 
-  // Update score if game is still running
+  // Update score based on time
   if (!gameOver) {
-    score += deltaTime * 60 // Scale score increase with deltaTime
+    score += SCORE_RATE * deltaTime
     updateDisplay()
   }
 
