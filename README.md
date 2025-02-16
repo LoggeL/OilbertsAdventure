@@ -8,10 +8,7 @@ A fun and challenging endless runner game where you control Oilbert, a brave lit
 
 - **Endless Runner**: Keep going as long as you can, with increasing difficulty
 - **Dynamic Platforming**: Jump across platforms with smooth controls
-- **Power-ups System**:
-  - ![Wrench](Sprites/Wrench.png) Collect for points
-  - ![Wing](Sprites/WingPowerup.png) Enable double jump ability (stackable)
-  - ![Bomb](Sprites/Bomb.png) Avoid these or game over!
+- **Power-ups System**: Collect various items to enhance your gameplay
 - **Platform Types**:
   - Regular green platforms
   - Breakable orange platforms that decay after landing
@@ -28,8 +25,9 @@ A fun and challenging endless runner game where you control Oilbert, a brave lit
 
 1. **Controls**:
 
-   - Use **Left/Right Arrow Keys** to move
-   - Press **Spacebar** to jump
+   - Use **Left/Right Arrow Keys** or **A/D** to move
+   - Press **Spacebar**, **W**, or **↑** to jump
+   - Press **ESC** to pause the game
    - Collect wing power-ups for double jump ability
 
 2. **Objectives**:
@@ -52,11 +50,11 @@ A fun and challenging endless runner game where you control Oilbert, a brave lit
 
 ## 🎮 Power-ups Guide
 
-| Power-up | Icon                             | Effect                          |
-| -------- | -------------------------------- | ------------------------------- |
-| Wrench   | ![Wrench](Sprites/Wrench.png)    | Collect for bonus points        |
-| Wing     | ![Wing](Sprites/WingPowerup.png) | Enables double jump (stackable) |
-| Bomb     | ![Bomb](Sprites/Bomb.png)        | Game over on contact            |
+| Power-up | Icon                             | Effect      | Spawn Rate | Special Notes                   |
+| -------- | -------------------------------- | ----------- | ---------- | ------------------------------- |
+| Wrench   | ![Wrench](Sprites/Wrench.png)    | +100 Points | 30%        | Instant score boost             |
+| Wing     | ![Wing](Sprites/WingPowerup.png) | Double Jump | 20%        | Stackable, can collect multiple |
+| Bomb     | ![Bomb](Sprites/Bomb.png)        | Game Over   | 15%        | Only spawns on wider platforms  |
 
 ## 🛠️ Technical Details
 
