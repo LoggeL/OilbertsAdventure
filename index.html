@@ -5,194 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Oilbert's Adventure</title>
     <link rel="stylesheet" href="styles.css" />
-    <style>
-      :root {
-        --game-width: min(800px, 100vw);
-        --game-height: min(400px, 50vh);
-        --player-size: min(75px, calc(var(--game-width) * 0.09375));
-      }
-
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      body {
-        background: #333;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        font-family: Arial, sans-serif;
-      }
-
-      #game-container {
-        width: var(--game-width);
-        height: var(--game-height);
-        position: relative;
-        overflow: hidden;
-        background: #87ceeb;
-        border: 4px solid #4caf50;
-        border-radius: 8px;
-      }
-
-      #player {
-        width: var(--player-size);
-        height: calc(var(--player-size) * 0.666);
-        position: absolute;
-        top: calc(var(--game-height) - 90px);
-        left: 100px;
-        transition: transform 0.1s;
-        z-index: 10;
-        transform-origin: center;
-      }
-
-      #player img {
-        width: 100%;
-        height: 100%;
-        transform: scaleX(1);
-        transform-origin: center;
-      }
-
-      .platform {
-        position: absolute;
-        height: 20px;
-        background: #4caf50;
-        border-radius: 4px;
-      }
-
-      .platform.breakable {
-        background: #ffa500;
-        border: 2px solid #ff4500;
-      }
-
-      .powerup {
-        position: absolute;
-        width: 30px;
-        height: 30px;
-        z-index: 5;
-      }
-
-      .powerup img {
-        width: 100%;
-        height: 100%;
-      }
-
-      #score-container {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        color: white;
-        font-size: 20px;
-        text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
-        z-index: 20;
-      }
-
-      #high-score {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        color: white;
-        font-size: 20px;
-        text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
-        z-index: 20;
-      }
-
-      #speed {
-        position: absolute;
-        top: 40px;
-        right: 10px;
-        color: white;
-        font-size: 20px;
-        text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
-        z-index: 20;
-      }
-
-      #double-jumps {
-        position: absolute;
-        top: 40px;
-        left: 10px;
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        z-index: 20;
-      }
-
-      .wing-indicator {
-        width: 30px;
-        height: 30px;
-      }
-
-      #splash-screen,
-      #game-over {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.8);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        color: white;
-        z-index: 100;
-      }
-
-      #touch-controls {
-        position: absolute;
-        bottom: 20px;
-        width: 100%;
-        display: none;
-        justify-content: space-between;
-        padding: 0 20px;
-        z-index: 50;
-      }
-
-      .touch-button {
-        width: 60px;
-        height: 60px;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 50%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        font-size: 24px;
-        color: white;
-        user-select: none;
-      }
-
-      @media (max-width: 768px) {
-        #touch-controls {
-          display: flex;
-        }
-      }
-
-      .jumping {
-        animation: jump 0.5s;
-      }
-
-      @keyframes jump {
-        0%,
-        100% {
-          transform: rotate(0deg);
-        }
-        50% {
-          transform: rotate(360deg);
-        }
-      }
-
-      .decaying {
-        animation: decay 1s forwards;
-      }
-
-      @keyframes decay {
-        to {
-          opacity: 0;
-        }
-      }
-    </style>
   </head>
   <body>
     <div id="game-container">
@@ -201,10 +13,14 @@
       </div>
 
       <div id="hud">
-        <div id="score-container">Score: 0</div>
-        <div id="high-score">High Score: 0</div>
-        <div id="speed">Speed: 1.0x</div>
-        <div id="double-jumps"></div>
+        <div class="hud-left">
+          <div id="score-container" class="hud-element">Score: 0</div>
+          <div id="double-jumps" class="hud-element"></div>
+        </div>
+        <div class="hud-right">
+          <div id="high-score" class="hud-element">High Score: 0</div>
+          <div id="speed" class="hud-element">Speed: 1.0x</div>
+        </div>
       </div>
 
       <div id="splash-screen">
@@ -242,9 +58,9 @@
       </div>
 
       <div id="mobile-controls">
-        <button id="left-button">←</button>
-        <button id="jump-button">JUMP</button>
-        <button id="right-button">→</button>
+        <button class="touch-button" id="left-button">←</button>
+        <button class="touch-button" id="jump-button">JUMP</button>
+        <button class="touch-button" id="right-button">→</button>
       </div>
     </div>
     <script src="game.js"></script>

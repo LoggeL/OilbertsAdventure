@@ -1,30 +1,32 @@
-// Game variables
-let score = 0
-let gameOver = false
-let gameStarted = false
-let highScore = parseInt(localStorage.getItem('oilbertHighScore')) || 0
-let platformSpeed = 5
-let playerVelocityY = 0
-let playerVelocityX = 0
-let isJumping = false
-let canDoubleJump = 0
-let hasDoubleJumped = false
-
 // Constants
 const GRAVITY = 0.5
 const JUMP_FORCE = -12
 const PLAYER_SPEED = 10
 const INITIAL_PLATFORM_SPEED = 3
-const SPEED_INCREASE = 0.0005
+const SPEED_INCREASE = 0.5 // Increased for more noticeable acceleration
+const SPEED_UPDATE_INTERVAL = 1000 // Update speed every 1000 points
 const WRENCH_SCORE = 100
 const WRENCH_SPAWN_CHANCE = 0.3
-const WING_SPAWN_CHANCE = 0.1
+const WING_SPAWN_CHANCE = 0.2
 const BOMB_SPAWN_CHANCE = 0.15
 const BREAKABLE_PLATFORM_CHANCE = 0.4
 const BOMB_BASE_SIZE = 30
 const BOMB_SCALE_FACTOR = 0.0005
-const PLATFORM_SPAWN_DISTANCE = window.innerWidth * 4 // Spawn platforms 4 screens ahead
+const PLATFORM_SPAWN_DISTANCE = window.innerWidth * 4
 const INITIAL_PLATFORM_DISTANCE = window.innerWidth * 3 // Initial platforms span 3 screens
+
+// Game variables
+let score = 0
+let gameOver = false
+let gameStarted = false
+let highScore = parseInt(localStorage.getItem('oilbertHighScore')) || 0
+let platformSpeed = INITIAL_PLATFORM_SPEED
+let playerVelocityY = 0
+let playerVelocityX = 0
+let isJumping = false
+let canDoubleJump = 0
+let hasDoubleJumped = false
+let lastSpeedUpdate = 0
 
 // Update game container size on window resize
 window.addEventListener('resize', () => {
@@ -104,6 +106,7 @@ function createPowerup(type, x, y) {
 
   const img = document.createElement('img')
   img.src = `Sprites/${type}.png`
+  img.alt = type
   powerup.appendChild(img)
 
   gameContainer.appendChild(powerup)
@@ -191,6 +194,8 @@ function updateDisplay() {
   highScoreElement.textContent = `High Score: ${highScore}`
   speedElement.textContent = `Speed: ${platformSpeed.toFixed(1)}x`
 
+  console.log(canDoubleJump)
+
   // Update double jump indicators
   doubleJumpsElement.innerHTML = ''
   for (let i = 0; i < canDoubleJump; i++) {
@@ -208,6 +213,8 @@ function gameLoop() {
       gameStarted = true
       splashScreen.style.display = 'none'
       sounds.spawn.play()
+      lastSpeedUpdate = score
+      platformSpeed = INITIAL_PLATFORM_SPEED
     }
     requestAnimationFrame(gameLoop)
     return
@@ -220,13 +227,19 @@ function gameLoop() {
       splashScreen.style.display = 'none'
       gameOverScreen.style.display = 'none'
       sounds.spawn.play()
+      lastSpeedUpdate = score
+      platformSpeed = INITIAL_PLATFORM_SPEED
     }
     requestAnimationFrame(gameLoop)
     return
   }
 
-  // Update platform speed
-  platformSpeed += SPEED_INCREASE
+  // Update platform speed every SPEED_UPDATE_INTERVAL points
+  if (!gameOver && score - lastSpeedUpdate >= SPEED_UPDATE_INTERVAL) {
+    platformSpeed += SPEED_INCREASE
+    lastSpeedUpdate = score
+    speedElement.textContent = `Speed: ${platformSpeed.toFixed(1)}x`
+  }
 
   // Handle player movement
   if (keys['ArrowLeft'] || keys['KeyA']) {
@@ -259,81 +272,107 @@ function gameLoop() {
 
     // Remove platforms that are off screen
     if (currentX + parseFloat(platform.style.width) < -200) {
+      const index = platforms.indexOf(platform)
+      if (index > -1) {
+        platforms.splice(index, 1)
+      }
       platform.remove()
     }
   })
 
-  // Check if we need to spawn new platforms
-  const lastPlatform = document.querySelector('.platform:last-child')
+  // Move powerups with platforms
+  document.querySelectorAll('.powerup').forEach((powerup) => {
+    const currentX = parseFloat(powerup.style.left)
+    powerup.style.left = `${currentX - platformSpeed}px`
+
+    // Remove powerups that are off screen
+    if (currentX + 30 < -200) {
+      powerup.remove()
+      return
+    }
+
+    const powerupRect = powerup.getBoundingClientRect()
+    if (
+      playerRect.right > powerupRect.left &&
+      playerRect.left < powerupRect.right &&
+      playerRect.bottom > powerupRect.top &&
+      playerRect.top < powerupRect.bottom
+    ) {
+      switch (powerup.dataset.type) {
+        case 'Wrench':
+          score += WRENCH_SCORE
+          sounds.collect.play()
+          break
+        case 'WingPowerup':
+          canDoubleJump++
+          updateDisplay()
+          sounds.spawn.play()
+          break
+        case 'Bomb':
+          if (!gameOver) {
+            gameOver = true
+            sounds.crash.play()
+            gameOverScreen.style.display = 'flex'
+            const finalScore = Math.floor(score / 10)
+            document.getElementById(
+              'final-score'
+            ).textContent = `Score: ${finalScore}`
+            const highScoreElement = document.getElementById('final-high-score')
+            highScoreElement.textContent = `High Score: ${highScore}`
+
+            if (finalScore > highScore) {
+              highScore = finalScore
+              localStorage.setItem('oilbertHighScore', highScore)
+              highScoreElement.classList.add('new-record')
+            } else {
+              highScoreElement.classList.remove('new-record')
+            }
+          }
+          break
+      }
+      powerup.remove()
+    }
+  })
+
+  // Spawn new platforms
+  const lastPlatform = platforms[platforms.length - 1]
   if (lastPlatform) {
     const lastX = parseFloat(lastPlatform.style.left)
     const lastWidth = parseFloat(lastPlatform.style.width)
-    const containerWidth = gameContainer.offsetWidth
-    const viewDistance = containerWidth * 4 // How far ahead we want to maintain platforms
+    const viewDistance = containerRect.width * 4
 
     if (lastX + lastWidth < viewDistance) {
-      const minGap = containerWidth * 0.2 // 20% of screen width
-      const maxGap = containerWidth * 0.4 // 40% of screen width
+      const minGap = containerRect.width * 0.2
+      const maxGap = containerRect.width * 0.4
       const gap = Math.random() * (maxGap - minGap) + minGap
 
-      // Ensure platform height is reachable and scales with container height
-      const containerHeight = gameContainer.offsetHeight
-      const minHeight = Math.min(
-        containerHeight - containerHeight * 0.25, // 75% of height
-        lastPlatform.offsetTop + containerHeight * 0.25 // 25% higher than last
-      )
-      const maxHeight = Math.max(
-        containerHeight - containerHeight * 0.625, // 37.5% of height
-        lastPlatform.offsetTop - containerHeight * 0.25 // 25% lower than last
-      )
-      const platformY = Math.min(
-        maxHeight,
-        Math.max(
-          minHeight,
-          containerHeight -
-            (Math.random() * (containerHeight * 0.375) + containerHeight * 0.25)
-        )
-      )
-
+      const platformY = containerRect.height - (Math.random() * 150 + 100)
       const isBreakable = Math.random() < BREAKABLE_PLATFORM_CHANCE
+      const platformWidth =
+        containerRect.width * 0.15 + Math.random() * (containerRect.width * 0.1)
+
       const newPlatform = createPlatform(
         lastX + lastWidth + gap,
         platformY,
-        containerWidth * 0.125 + Math.random() * (containerWidth * 0.125), // 12.5-25% of screen width
+        platformWidth,
         20,
         isBreakable
       )
-
-      // Add to platforms array for tracking
       platforms.push(newPlatform)
 
-      // Get platform width for powerup spawn logic
-      const platformWidth = parseFloat(newPlatform.style.width)
-      const isBigPlatform = platformWidth >= containerWidth * 0.2 // Platform is at least 20% of screen width
+      // Spawn powerups on the new platform
+      const powerupX = lastX + lastWidth + gap + platformWidth / 2
+      const powerupY = platformY - 40
 
-      // Spawn powerups
       if (Math.random() < WRENCH_SPAWN_CHANCE) {
-        createPowerup(
-          'Wrench',
-          parseFloat(newPlatform.style.left) +
-            parseFloat(newPlatform.style.width) / 2,
-          parseFloat(newPlatform.style.top) - 50
-        )
+        createPowerup('Wrench', powerupX, powerupY)
       } else if (Math.random() < WING_SPAWN_CHANCE) {
-        createPowerup(
-          'WingPowerup',
-          parseFloat(newPlatform.style.left) +
-            parseFloat(newPlatform.style.width) / 2,
-          parseFloat(newPlatform.style.top) - 60
-        )
-      } else if (Math.random() < BOMB_SPAWN_CHANCE && isBigPlatform) {
-        // Only spawn bombs on big platforms
-        createPowerup(
-          'Bomb',
-          parseFloat(newPlatform.style.left) +
-            parseFloat(newPlatform.style.width) / 2,
-          parseFloat(newPlatform.style.top) - 55
-        )
+        createPowerup('WingPowerup', powerupX, powerupY)
+      } else if (
+        Math.random() < BOMB_SPAWN_CHANCE &&
+        platformWidth >= containerRect.width * 0.2
+      ) {
+        createPowerup('Bomb', powerupX, powerupY)
       }
     }
   }
@@ -418,57 +457,6 @@ function gameLoop() {
       }
     }
   }
-
-  // Move and check powerups
-  document.querySelectorAll('.powerup').forEach((powerup) => {
-    const currentX = parseFloat(powerup.style.left)
-    powerup.style.left = `${currentX - platformSpeed}px`
-
-    if (currentX + 30 < 0) {
-      powerup.remove()
-      return
-    }
-
-    const powerupRect = powerup.getBoundingClientRect()
-    if (
-      playerRect.right > powerupRect.left &&
-      playerRect.left < powerupRect.right &&
-      playerRect.bottom > powerupRect.top &&
-      playerRect.top < powerupRect.bottom
-    ) {
-      switch (powerup.dataset.type) {
-        case 'Wrench':
-          score += WRENCH_SCORE
-          sounds.collect.play()
-          break
-        case 'WingPowerup':
-          canDoubleJump++
-          sounds.spawn.play()
-          break
-        case 'Bomb':
-          if (!gameOver) {
-            gameOver = true
-            sounds.crash.play()
-            gameOverScreen.style.display = 'flex'
-            const finalScore = Math.floor(score / 10)
-            document.getElementById(
-              'final-score'
-            ).textContent = `Score: ${finalScore}`
-            const highScoreElement = document.getElementById('final-high-score')
-            highScoreElement.textContent = `High Score: ${highScore}`
-
-            // Check if this is a new high score
-            if (finalScore > highScore) {
-              highScoreElement.classList.add('new-record')
-            } else {
-              highScoreElement.classList.remove('new-record')
-            }
-          }
-          break
-      }
-      powerup.remove()
-    }
-  })
 
   // Update score if game is still running
   if (!gameOver) {
