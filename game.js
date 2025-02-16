@@ -19,12 +19,15 @@ const INITIAL_PLATFORM_DISTANCE = window.innerWidth * 3 // Initial platforms spa
 let score = 0
 let gameOver = false
 let gameStarted = false
+let isPaused = false
+let lastFrameTime = 0
 let highScore = parseInt(localStorage.getItem('oilbertHighScore')) || 0
 let platformSpeed = INITIAL_PLATFORM_SPEED
 let playerVelocityY = 0
 let playerVelocityX = 0
 let isJumping = false
 let canDoubleJump = 0
+let lastDoubleJumpCount = 0
 let hasDoubleJumped = false
 let lastSpeedUpdate = 0
 
@@ -56,6 +59,7 @@ const speedElement = document.getElementById('speed')
 const doubleJumpsElement = document.getElementById('double-jumps')
 const splashScreen = document.getElementById('splash-screen')
 const gameOverScreen = document.getElementById('game-over')
+const pauseScreen = document.getElementById('pause-screen')
 
 // Platform tracking
 let platforms = []
@@ -115,7 +119,22 @@ function createPowerup(type, x, y) {
 
 // Handle keyboard input
 const keys = {}
-document.addEventListener('keydown', (e) => (keys[e.code] = true))
+document.addEventListener('keydown', (e) => {
+  keys[e.code] = true
+
+  // Handle pause
+  if (e.code === 'Escape' && gameStarted && !gameOver) {
+    isPaused = !isPaused
+    pauseScreen.style.display = isPaused ? 'flex' : 'none'
+
+    if (!isPaused) {
+      // Reset last frame time when unpausing
+      lastFrameTime = performance.now()
+      // Resume game loop
+      requestAnimationFrame(gameLoop)
+    }
+  }
+})
 document.addEventListener('keyup', (e) => (keys[e.code] = false))
 
 // Handle touch controls
@@ -151,11 +170,13 @@ function resetGame() {
   score = 0
   gameOver = false
   gameStarted = false
+  isPaused = false
   platformSpeed = INITIAL_PLATFORM_SPEED
   playerVelocityY = 0
   playerVelocityX = 0
   isJumping = false
   canDoubleJump = 0
+  lastDoubleJumpCount = 0
   hasDoubleJumped = false
 
   // Clear existing platforms and powerups
@@ -185,6 +206,7 @@ function resetGame() {
   // Show splash screen
   splashScreen.style.display = 'flex'
   gameOverScreen.style.display = 'none'
+  pauseScreen.style.display = 'none'
 }
 
 // Update game display
@@ -194,20 +216,30 @@ function updateDisplay() {
   highScoreElement.textContent = `High Score: ${highScore}`
   speedElement.textContent = `Speed: ${platformSpeed.toFixed(1)}x`
 
-  console.log(canDoubleJump)
-
-  // Update double jump indicators
-  doubleJumpsElement.innerHTML = ''
-  for (let i = 0; i < canDoubleJump; i++) {
-    const wing = document.createElement('img')
-    wing.src = 'Sprites/WingPowerup.png'
-    wing.className = 'wing-indicator'
-    doubleJumpsElement.appendChild(wing)
+  // Only update double jump indicators if the count has changed
+  if (lastDoubleJumpCount !== canDoubleJump) {
+    doubleJumpsElement.innerHTML = ''
+    for (let i = 0; i < canDoubleJump; i++) {
+      const wing = document.createElement('img')
+      wing.src = 'Sprites/WingPowerup.png'
+      wing.className = 'wing-indicator'
+      doubleJumpsElement.appendChild(wing)
+    }
+    lastDoubleJumpCount = canDoubleJump
   }
 }
 
 // Game loop
-function gameLoop() {
+function gameLoop(currentTime) {
+  // Initialize lastFrameTime on first frame
+  if (!lastFrameTime) {
+    lastFrameTime = currentTime
+  }
+
+  // Calculate time since last frame in seconds
+  const deltaTime = (currentTime - lastFrameTime) / 1000
+  lastFrameTime = currentTime
+
   if (!gameStarted) {
     if (keys['Space'] || keys['ArrowUp'] || keys['KeyW']) {
       gameStarted = true
@@ -234,6 +266,13 @@ function gameLoop() {
     return
   }
 
+  if (isPaused) {
+    // Reset lastFrameTime when paused to prevent time accumulation
+    lastFrameTime = currentTime
+    requestAnimationFrame(gameLoop)
+    return
+  }
+
   // Update platform speed every SPEED_UPDATE_INTERVAL points
   if (!gameOver && score - lastSpeedUpdate >= SPEED_UPDATE_INTERVAL) {
     platformSpeed += SPEED_INCREASE
@@ -250,25 +289,27 @@ function gameLoop() {
     playerVelocityX = 0
   }
 
-  // Update player position
+  // Update player position with deltaTime
   const playerRect = player.getBoundingClientRect()
   const containerRect = gameContainer.getBoundingClientRect()
 
   // Adjust player position to account for platform movement
   let newX =
-    playerRect.left - containerRect.left + playerVelocityX - platformSpeed
+    playerRect.left -
+    containerRect.left +
+    (playerVelocityX - platformSpeed) * deltaTime * 60
   newX = Math.max(0, Math.min(newX, containerRect.width - playerRect.width))
   player.style.left = `${newX}px`
 
-  // Apply gravity
-  playerVelocityY += GRAVITY
+  // Apply gravity with deltaTime
+  playerVelocityY += GRAVITY * deltaTime * 60
   let currentY = parseInt(player.style.top || '0')
-  let newY = currentY + playerVelocityY
+  let newY = currentY + playerVelocityY * deltaTime * 60
 
   // Move platforms and check for removal
   document.querySelectorAll('.platform').forEach((platform) => {
     const currentX = parseFloat(platform.style.left)
-    platform.style.left = `${currentX - platformSpeed}px`
+    platform.style.left = `${currentX - platformSpeed * deltaTime * 60}px`
 
     // Remove platforms that are off screen
     if (currentX + parseFloat(platform.style.width) < -200) {
@@ -283,7 +324,7 @@ function gameLoop() {
   // Move powerups with platforms
   document.querySelectorAll('.powerup').forEach((powerup) => {
     const currentX = parseFloat(powerup.style.left)
-    powerup.style.left = `${currentX - platformSpeed}px`
+    powerup.style.left = `${currentX - platformSpeed * deltaTime * 60}px`
 
     // Remove powerups that are off screen
     if (currentX + 30 < -200) {
@@ -460,7 +501,7 @@ function gameLoop() {
 
   // Update score if game is still running
   if (!gameOver) {
-    score++
+    score += deltaTime * 60 // Scale score increase with deltaTime
     updateDisplay()
   }
 
@@ -469,4 +510,5 @@ function gameLoop() {
 
 // Start game
 resetGame()
-gameLoop()
+lastFrameTime = performance.now()
+gameLoop(lastFrameTime)
