@@ -11,10 +11,6 @@ const WRENCH_SPAWN_CHANCE = 0.3
 const WING_SPAWN_CHANCE = 0.2
 const BOMB_SPAWN_CHANCE = 0.15
 const BREAKABLE_PLATFORM_CHANCE = 0.4
-const BOMB_BASE_SIZE = 30
-const BOMB_SCALE_FACTOR = 0.0005
-const PLATFORM_SPAWN_DISTANCE = window.innerWidth * 4
-const INITIAL_PLATFORM_DISTANCE = window.innerWidth * 3
 const SCORE_RATE = 60 // Score points per second
 
 // Game variables
@@ -65,30 +61,6 @@ const pauseScreen = document.getElementById('pause-screen')
 
 // Platform tracking
 let platforms = []
-
-// Create initial platforms
-function createInitialPlatforms() {
-  const containerWidth = gameContainer.offsetWidth
-  const containerHeight = gameContainer.offsetHeight
-  const platformCount = Math.ceil(INITIAL_PLATFORM_DISTANCE / 200) // More frequent initial platforms
-
-  const platforms = [
-    createPlatform(0, containerHeight - 40, containerWidth + 200, 40),
-  ]
-
-  let lastX = containerWidth
-  for (let i = 1; i < platformCount; i++) {
-    const gap = Math.random() * 150 + 150 // Gap between 150-300
-    const width = Math.random() * 100 + 150 // Width between 150-250
-    const height = 20
-    const y = containerHeight - (Math.random() * 150 + 50) // Height variation
-
-    platforms.push(createPlatform(lastX + gap, y, width, height))
-    lastX += gap + width
-  }
-
-  return platforms
-}
 
 // Create a platform element
 function createPlatform(x, y, width, height, isBreakable = false) {
@@ -147,13 +119,15 @@ const touchButtons = {
 }
 
 Object.entries(touchButtons).forEach(([key, button]) => {
-  button.addEventListener('touchstart', () => {
+  button.addEventListener('touchstart', (e) => {
+    e.preventDefault()
     if (key === 'jump') keys['Space'] = true
     else if (key === 'left') keys['ArrowLeft'] = true
     else if (key === 'right') keys['ArrowRight'] = true
   })
 
-  button.addEventListener('touchend', () => {
+  button.addEventListener('touchend', (e) => {
+    e.preventDefault()
     if (key === 'jump') keys['Space'] = false
     else if (key === 'left') keys['ArrowLeft'] = false
     else if (key === 'right') keys['ArrowRight'] = false
@@ -180,6 +154,9 @@ function resetGame() {
   canDoubleJump = 0
   lastDoubleJumpCount = 0
   hasDoubleJumped = false
+
+  // Clear all key states to prevent stuck keys
+  Object.keys(keys).forEach(key => keys[key] = false)
 
   // Clear existing platforms and powerups
   document.querySelectorAll('.platform, .powerup').forEach((el) => el.remove())
@@ -371,17 +348,15 @@ function gameLoop(currentTime) {
               'final-score'
             ).textContent = `Score: ${finalScore}`
 
-            if (finalScore > highScore) {
+            const isNewRecord = finalScore > highScore
+            if (isNewRecord) {
               highScore = finalScore
               localStorage.setItem('oilbertHighScore', highScore)
             }
 
             const highScoreElement = document.getElementById('final-high-score')
             highScoreElement.textContent = `High Score: ${highScore}`
-            highScoreElement.classList.toggle(
-              'new-record',
-              finalScore > highScore
-            )
+            highScoreElement.classList.toggle('new-record', isNewRecord)
           }
           break
       }
@@ -454,6 +429,7 @@ function gameLoop(currentTime) {
       newY = platformTop - playerRect.height
       playerVelocityY = 0
       isJumping = false
+      hasDoubleJumped = false
 
       if (
         platform.classList.contains('breakable') &&
@@ -475,12 +451,14 @@ function gameLoop(currentTime) {
     if (!isJumping && onPlatform) {
       playerVelocityY = JUMP_FORCE
       isJumping = true
+      hasDoubleJumped = false
       player.classList.add('jumping')
       setTimeout(() => player.classList.remove('jumping'), 500)
       sounds.jump.play()
-    } else if (canDoubleJump > 0 && playerVelocityY > 0) {
+    } else if (canDoubleJump > 0 && !hasDoubleJumped && !onPlatform) {
       playerVelocityY = JUMP_FORCE
       canDoubleJump--
+      hasDoubleJumped = true
       player.classList.add('jumping')
       setTimeout(() => player.classList.remove('jumping'), 500)
       sounds.jump.play()
@@ -501,14 +479,15 @@ function gameLoop(currentTime) {
         'final-score'
       ).textContent = `Score: ${finalScore}`
 
-      if (finalScore > highScore) {
+      const isNewRecord = finalScore > highScore
+      if (isNewRecord) {
         highScore = finalScore
         localStorage.setItem('oilbertHighScore', highScore)
       }
 
       const highScoreElement = document.getElementById('final-high-score')
       highScoreElement.textContent = `High Score: ${highScore}`
-      highScoreElement.classList.toggle('new-record', finalScore > highScore)
+      highScoreElement.classList.toggle('new-record', isNewRecord)
     }
   }
 
