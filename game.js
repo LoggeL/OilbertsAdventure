@@ -465,7 +465,7 @@ function resetGame() {
   playerState.velocityX = 0
   playerState.isJumping = false
   playerState.canDoubleJump = 0
-  playerState.lastDoubleJumpCount = 0
+  playerState.lastDoubleJumpCount = 1
   playerState.hasDoubleJumped = false
 
   // Clear all key states to prevent stuck keys
