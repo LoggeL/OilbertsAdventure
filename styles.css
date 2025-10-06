@@ -28,6 +28,9 @@ body {
   background: #87ceeb;
   border: 4px solid #4caf50;
   border-radius: 8px;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
 }
 
 #player {
@@ -36,13 +39,15 @@ body {
   position: absolute;
   top: calc(var(--game-height) - 90px);
   left: 100px;
-  transition: transform 0.1s;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 10;
   transform-origin: center;
-  will-change: transform;
+  will-change: transform, top, left;
   display: flex;
   justify-content: center;
   align-items: center;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
 }
 
 #player::after {
@@ -59,12 +64,15 @@ body {
 #player img {
   width: 100%;
   height: 100%;
-  transform: scaleX(1);
+  transform: scaleX(1) translateZ(0);
   transform-origin: center;
   pointer-events: none;
   position: absolute;
   left: 0;
   top: 0;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 #player.jumping {
@@ -76,8 +84,11 @@ body {
   height: var(--platform-height);
   background: #4caf50;
   border-radius: 4px;
-  animation: spawn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: spawn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform-origin: center;
+  will-change: transform, left;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
 }
 
 .platform.breakable {
@@ -85,6 +96,7 @@ body {
   border: 2px solid #ff4500;
   overflow: hidden;
   position: relative;
+  will-change: transform, opacity;
 }
 
 .platform.breakable::before {
@@ -105,11 +117,11 @@ body {
 }
 
 .platform.decaying {
-  animation: shake 0.3s ease-in-out, break 1s ease-in forwards;
+  animation: shake 0.3s cubic-bezier(0.4, 0, 0.2, 1), break 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .platform.decaying::before {
-  animation: crack 1s ease-in forwards;
+  animation: crack 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .powerup {
@@ -117,7 +129,10 @@ body {
   width: 30px;
   height: 30px;
   z-index: 5;
-  animation: powerup-float 2s ease-in-out infinite;
+  animation: powerup-float 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: transform, left;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
 }
 
 .powerup img {
@@ -128,7 +143,7 @@ body {
 /* Bomb - Dangerous (Red pulsing warning) */
 .powerup[data-type='Bomb'] {
   filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.8));
-  animation: powerup-float 2s ease-in-out infinite, bomb-danger 1s ease-in-out infinite;
+  animation: powerup-float 2s cubic-bezier(0.4, 0, 0.6, 1) infinite, bomb-danger 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 .powerup[data-type='Bomb']::before {
@@ -142,19 +157,19 @@ body {
 }
 
 .powerup[data-type='Bomb'] img {
-  animation: bomb-shake 0.5s ease-in-out infinite;
+  animation: bomb-shake 0.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* Wrench - Positive (Green glow) */
 .powerup[data-type='Wrench'] {
   filter: drop-shadow(0 0 8px rgba(0, 255, 0, 0.6));
-  animation: powerup-float 2s ease-in-out infinite, positive-glow 2s ease-in-out infinite;
+  animation: powerup-float 2s cubic-bezier(0.4, 0, 0.6, 1) infinite, positive-glow 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* Wing Powerup - Positive (Blue/Cyan glow) */
 .powerup[data-type='WingPowerup'] {
   filter: drop-shadow(0 0 8px rgba(0, 200, 255, 0.6));
-  animation: powerup-float 2s ease-in-out infinite, positive-glow 2s ease-in-out infinite;
+  animation: powerup-float 2s cubic-bezier(0.4, 0, 0.6, 1) infinite, positive-glow 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 #hud {
@@ -184,6 +199,8 @@ body {
   backdrop-filter: blur(5px);
   color: white;
   white-space: nowrap;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: contents;
 }
 
 #score-container.hud-element {
@@ -213,8 +230,10 @@ body {
   width: 20px;
   height: 20px;
   filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.5));
-  transition: transform 0.2s ease;
-  animation: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 .wing-indicator:hover {
@@ -323,8 +342,9 @@ body {
 .restart-instruction {
   font-size: clamp(18px, 4vw, 24px);
   margin-top: 20px;
-  animation: pulse 1.5s infinite;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   width: 100%;
+  will-change: opacity, transform;
 }
 
 #game-over h2 {
@@ -358,9 +378,10 @@ body {
 }
 
 #final-high-score.new-record {
-  animation: glow 1s ease-in-out infinite alternate;
+  animation: glow 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite alternate;
   font-weight: bold;
   position: relative;
+  will-change: text-shadow;
 }
 
 #final-high-score.new-record::before {
@@ -407,7 +428,10 @@ body {
   font-size: 24px;
   color: white;
   user-select: none;
-}
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, background;
+  backface-visibility: hidden;
+}\n\n.touch-button:active {\n  transform: scale(0.9);\n  background: rgba(255, 255, 255, 0.4);\n}
 
 @media (max-width: 600px) {
   .info-container {
@@ -459,22 +483,28 @@ body {
 }
 
 @keyframes jump {
-  0%,
-  100% {
-    transform: rotate(0deg);
+  0% {
+    transform: rotate(0deg) translateZ(0);
   }
   50% {
-    transform: rotate(360deg);
+    transform: rotate(180deg) translateZ(0) scale(1.05);
+  }
+  100% {
+    transform: rotate(360deg) translateZ(0);
   }
 }
 
 @keyframes spawn {
   0% {
-    transform: scaleY(0);
+    transform: scaleY(0) translateZ(0);
     opacity: 0;
   }
+  60% {
+    transform: scaleY(1.05) translateZ(0);
+    opacity: 1;
+  }
   100% {
-    transform: scaleY(1);
+    transform: scaleY(1) translateZ(0);
     opacity: 1;
   }
 }
@@ -482,33 +512,33 @@ body {
 @keyframes shake {
   0%,
   100% {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0) rotate(0deg);
   }
   20% {
-    transform: translateX(-3px) rotate(-1deg);
+    transform: translate3d(-3px, 0, 0) rotate(-1deg);
   }
   40% {
-    transform: translateX(3px) rotate(1deg);
+    transform: translate3d(3px, 0, 0) rotate(1deg);
   }
   60% {
-    transform: translateX(-3px) rotate(-1deg);
+    transform: translate3d(-3px, 0, 0) rotate(-1deg);
   }
   80% {
-    transform: translateX(3px) rotate(1deg);
+    transform: translate3d(3px, 0, 0) rotate(1deg);
   }
 }
 
 @keyframes break {
   0% {
-    transform: translateY(0) rotate(0);
+    transform: translate3d(0, 0, 0) rotate(0deg);
     filter: brightness(1);
   }
   30% {
-    transform: translateY(0) rotate(0);
+    transform: translate3d(0, -2px, 0) rotate(0deg);
     filter: brightness(1.2);
   }
   100% {
-    transform: translateY(100px) rotate(15deg);
+    transform: translate3d(0, 100px, 0) rotate(15deg);
     filter: brightness(0.8);
     opacity: 0;
   }
@@ -517,15 +547,15 @@ body {
 @keyframes crack {
   0% {
     opacity: 0;
-    transform: scaleX(0.7) scaleY(0);
+    transform: scaleX(0.7) scaleY(0) translateZ(0);
   }
   30% {
     opacity: 1;
-    transform: scaleX(1) scaleY(1);
+    transform: scaleX(1) scaleY(1) translateZ(0);
   }
   100% {
     opacity: 1;
-    transform: scaleX(1.2) scaleY(1);
+    transform: scaleX(1.2) scaleY(1) translateZ(0);
   }
 }
 
@@ -533,9 +563,11 @@ body {
   0%,
   100% {
     opacity: 1;
+    transform: scale(1);
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.6;
+    transform: scale(1.02);
   }
 }
 
@@ -547,11 +579,15 @@ body {
 
 @keyframes pop-in {
   0% {
-    transform: scale(0) rotate(-45deg);
+    transform: scale(0) rotate(-45deg) translateZ(0);
     opacity: 0;
   }
+  60% {
+    transform: scale(1.1) rotate(0deg) translateZ(0);
+    opacity: 1;
+  }
   100% {
-    transform: scale(1) rotate(0deg);
+    transform: scale(1) rotate(0deg) translateZ(0);
     opacity: 1;
   }
 }
@@ -559,51 +595,54 @@ body {
 /* Power-up animations */
 @keyframes powerup-float {
   0%, 100% {
-    transform: translateY(0px);
+    transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translateY(-8px);
+    transform: translate3d(0, -10px, 0);
   }
 }
 
 @keyframes bomb-danger {
   0%, 100% {
-    filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.8));
+    filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.8)) brightness(1);
   }
   50% {
-    filter: drop-shadow(0 0 20px rgba(255, 0, 0, 1)) drop-shadow(0 0 30px rgba(255, 50, 0, 0.8));
+    filter: drop-shadow(0 0 20px rgba(255, 0, 0, 1)) drop-shadow(0 0 30px rgba(255, 50, 0, 0.8)) brightness(1.1);
   }
 }
 
 @keyframes bomb-shake {
   0%, 100% {
-    transform: rotate(0deg);
+    transform: rotate(0deg) translateZ(0);
   }
   25% {
-    transform: rotate(-5deg);
+    transform: rotate(-5deg) translateZ(0);
+  }
+  50% {
+    transform: rotate(0deg) translateZ(0);
   }
   75% {
-    transform: rotate(5deg);
+    transform: rotate(5deg) translateZ(0);
   }
 }
 
 @keyframes warning-pulse {
   0%, 100% {
     opacity: 1;
-    transform: translateX(-50%) scale(1);
+    transform: translateX(-50%) scale(1) translateZ(0);
   }
   50% {
-    opacity: 0.5;
-    transform: translateX(-50%) scale(1.2);
+    opacity: 0.6;
+    transform: translateX(-50%) scale(1.3) translateZ(0);
   }
 }
 
 @keyframes positive-glow {
   0%, 100% {
-    transform: translateY(0px) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
   50% {
-    transform: translateY(-8px) scale(1.05);
+    transform: translate3d(0, -10px, 0) scale(1.08);
   }
 }
 
