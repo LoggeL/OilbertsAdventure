@@ -60,6 +60,7 @@ sounds.crash.volume = 0.4
 // ===== GAME DATA =====
 let platforms = []
 const keys = {}
+const keysPressed = {} // Track keys that were just pressed this frame
 
 // ===== WINDOW RESIZE HANDLER =====
 window.addEventListener('resize', () => {
@@ -69,12 +70,16 @@ window.addEventListener('resize', () => {
 
 // ===== INPUT HANDLERS =====
 document.addEventListener('keydown', (e) => {
-  keys[e.code] = true
-
-  // Handle pause
-  if (e.code === 'Escape' && gameState.gameStarted && !gameState.gameOver) {
-    togglePause()
+  // Only set keysPressed if the key wasn't already down (prevents key repeat)
+  if (!keys[e.code]) {
+    keysPressed[e.code] = true
+    
+    // Handle pause (only on initial key press, not when held)
+    if (e.code === 'Escape' && gameState.gameStarted && !gameState.gameOver) {
+      togglePause()
+    }
   }
+  keys[e.code] = true
 })
 
 document.addEventListener('keyup', (e) => {
@@ -91,9 +96,14 @@ const touchButtons = {
 Object.entries(touchButtons).forEach(([key, button]) => {
   button.addEventListener('touchstart', (e) => {
     e.preventDefault()
-    if (key === 'jump') keys['Space'] = true
-    else if (key === 'left') keys['ArrowLeft'] = true
-    else if (key === 'right') keys['ArrowRight'] = true
+    if (key === 'jump') {
+      if (!keys['Space']) keysPressed['Space'] = true
+      keys['Space'] = true
+    } else if (key === 'left') {
+      keys['ArrowLeft'] = true
+    } else if (key === 'right') {
+      keys['ArrowRight'] = true
+    }
   })
 
   button.addEventListener('touchend', (e) => {
@@ -117,6 +127,10 @@ function togglePause() {
 
 function clearKeys() {
   Object.keys(keys).forEach(key => keys[key] = false)
+}
+
+function clearKeysPressed() {
+  Object.keys(keysPressed).forEach(key => delete keysPressed[key])
 }
 
 function updateDisplay() {
@@ -374,8 +388,11 @@ function updatePlayerPosition(deltaTime) {
 }
 
 function handleJumping(onPlatform) {
-  if (keys['Space'] || keys['ArrowUp'] || keys['KeyW']) {
+  const jumpKeyPressed = keysPressed['Space'] || keysPressed['ArrowUp'] || keysPressed['KeyW']
+  
+  if (jumpKeyPressed) {
     if (!playerState.isJumping && onPlatform) {
+      // Initial jump from platform
       playerState.velocityY = JUMP_FORCE
       playerState.isJumping = true
       playerState.hasDoubleJumped = false
@@ -383,6 +400,7 @@ function handleJumping(onPlatform) {
       setTimeout(() => player.classList.remove('jumping'), 500)
       sounds.jump.play()
     } else if (playerState.canDoubleJump > 0 && !playerState.hasDoubleJumped && !onPlatform) {
+      // Double jump in air
       playerState.velocityY = JUMP_FORCE
       playerState.canDoubleJump--
       playerState.hasDoubleJumped = true
@@ -484,19 +502,20 @@ function gameLoop(currentTime) {
 
   // Handle game states
   if (!gameState.gameStarted) {
-    if (keys['Space'] || keys['ArrowUp'] || keys['KeyW']) {
+    if (keysPressed['Space'] || keysPressed['ArrowUp'] || keysPressed['KeyW']) {
       gameState.gameStarted = true
       splashScreen.style.display = 'none'
       sounds.spawn.play()
       gameState.lastSpeedUpdate = gameState.score
       gameState.platformSpeed = INITIAL_PLATFORM_SPEED
     }
+    clearKeysPressed()
     requestAnimationFrame(gameLoop)
     return
   }
 
   if (gameState.gameOver) {
-    if (keys['Space'] || keys['ArrowUp'] || keys['KeyW']) {
+    if (keysPressed['Space'] || keysPressed['ArrowUp'] || keysPressed['KeyW']) {
       resetGame()
       gameState.gameStarted = true
       splashScreen.style.display = 'none'
@@ -505,6 +524,7 @@ function gameLoop(currentTime) {
       gameState.lastSpeedUpdate = gameState.score
       gameState.platformSpeed = INITIAL_PLATFORM_SPEED
     }
+    clearKeysPressed()
     requestAnimationFrame(gameLoop)
     return
   }
@@ -512,6 +532,7 @@ function gameLoop(currentTime) {
   if (gameState.isPaused) {
     // Keep lastFrameTime updated while paused to prevent deltaTime spike
     gameState.lastFrameTime = currentTime
+    clearKeysPressed()
     requestAnimationFrame(gameLoop)
     return
   }
@@ -556,6 +577,9 @@ function gameLoop(currentTime) {
     gameState.score += SCORE_RATE * deltaTime
     updateDisplay()
   }
+
+  // Clear keys pressed this frame
+  clearKeysPressed()
 
   requestAnimationFrame(gameLoop)
 }
