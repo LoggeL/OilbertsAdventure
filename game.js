@@ -299,11 +299,16 @@ function handlePowerupCollision(powerup, playerRect) {
 function checkPowerupCollisions(playerRect) {
   document.querySelectorAll('.powerup').forEach((powerup) => {
     const powerupRect = powerup.getBoundingClientRect()
+    
+    // Reduce bomb hitbox by 30% to make it easier to avoid
+    const isBomb = powerup.dataset.type === 'Bomb'
+    const hitboxPadding = isBomb ? 9 : 0 // 30% of 30px powerup size
+    
     if (
-      playerRect.right > powerupRect.left &&
-      playerRect.left < powerupRect.right &&
-      playerRect.bottom > powerupRect.top &&
-      playerRect.top < powerupRect.bottom
+      playerRect.right > powerupRect.left + hitboxPadding &&
+      playerRect.left < powerupRect.right - hitboxPadding &&
+      playerRect.bottom > powerupRect.top + hitboxPadding &&
+      playerRect.top < powerupRect.bottom - hitboxPadding
     ) {
       handlePowerupCollision(powerup, playerRect)
     }
